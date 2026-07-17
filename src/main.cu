@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cmath>
 #include <chrono>
+#include <cstdlib>
 
 #include "kernels.h"
 
@@ -98,10 +99,22 @@ void baseline_attention(
     cudaFree(S);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-    int N = 512;
-    int D = 64;
+    // int N = 4096;
+    // int D = 64;
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0] << " <N> <D>\n";
+        return 1;
+    }
+
+    int N = std::atoi(argv[1]);
+    int D = std::atoi(argv[2]);
+
+    if (N <= 0 || D <= 0) {
+        std::cerr << "Error: N and D must be positive integers.\n";
+        return 1;
+    }
 
     size_t elements = N*D;
     size_t bytes = elements*sizeof(float);
