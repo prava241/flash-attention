@@ -6,6 +6,13 @@
 
 using namespace std;
 
+/*
+ * Naive Kernels:
+ * - Naive Matrix Multiplication (Regular + Transpose)
+ * - Constant Division (for Normalization)
+ * - Naive Softmax
+ */
+
 __global__ void matmulT_kernel(
     const float* A,
     const float* B,
