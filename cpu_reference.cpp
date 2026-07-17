@@ -1,4 +1,0 @@
-void attention_cpu(...)
-{
-    ...
-}

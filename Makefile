@@ -1,16 +1,18 @@
 NVCC = nvcc
-
 CFLAGS = -O3
 
-TARGET = attention
+TARGET = attention_test
 
-SRC = \
-src/main.cpp \
-src/attention.cu \
-src/cpu_reference.cpp
+all: $(TARGET)
 
-all:
-	$(NVCC) $(CFLAGS) $(SRC) -o $(TARGET)
+$(TARGET): main.o kernels.o
+	$(NVCC) $^ -o $@
+
+main.o: main.cu kernels.h
+	$(NVCC) $(CFLAGS) -c main.cu
+
+kernels.o: kernels.cu kernels.h
+	$(NVCC) $(CFLAGS) -c kernels.cu
 
 clean:
-	rm -f $(TARGET)
+	rm -f *.o $(TARGET)

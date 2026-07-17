@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "kernels.h"
+
 using namespace std;
 
 __global__ void matmulT_kernel(
