@@ -60,4 +60,9 @@ __global__ void tiled_scaled_mmT_kernel(
     float factor
 );
 
+__global__ void shfl_softmax_kernel(
+    float* A,
+    int N
+);
+
 #endif // KERNELS_H

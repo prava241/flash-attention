@@ -277,3 +277,70 @@ __global__ void tiled_scaled_mmT_kernel(
     if (row < M && col < N)
         C[row*N + col] = sum * factor;
 }
+
+__global__ void shfl_softmax_kernel(
+    float* A,
+    int N)
+{
+    __shared__ float reductions[8]; // TODO: dynamic sizing
+    float* row = A + blockIdx.x * N;
+
+    int tid = threadIdx.x;
+    int warp = tid / warpSize;
+    int lane = tid % warpSize;
+
+    float local_max = -INFINITY;
+    for (int j = 0, i = tid; i < N; ++j, i += blockDim.x) {
+        local_max = max(local_max, row[i]);
+    }
+
+    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+        local_max = max(local_max, __shfl_down_sync(0xffffffff, local_max, offset));
+    }
+
+    if (lane == 0) reductions[warp] = local_max;
+    __syncthreads();
+
+    if (warp == 0) {
+        float val = (lane < 8) ? reductions[lane] : -INFINITY;
+        for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+            val = max(val, __shfl_down_sync(0xffffffff, val, offset));
+        }
+
+        if (lane == 0)
+            reductions[0] = val;
+    }
+    __syncthreads();
+
+    float row_max = reductions[0];
+    float local_sum = 0;
+
+    for (int j = 0, i = tid; i < N; ++j, i += blockDim.x) {
+        row[i] = expf(row[i] - row_max);
+        local_sum += row[i];
+    }
+
+    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+        local_sum += __shfl_down_sync(0xffffffff, local_sum, offset);
+    }
+
+    if (lane == 0) reductions[warp] = local_sum;
+    __syncthreads();
+
+    if (warp == 0) {
+        float val = (lane < 8) ? reductions[lane] : 0.0f;
+        for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+            val += __shfl_down_sync(0xffffffff, val, offset);
+        }
+
+        if (lane == 0)
+            reductions[0] = val;
+    }
+    __syncthreads();
+
+    float row_sum = reductions[0];
+    float inv_sum = 1.0f / row_sum;
+    for (int i = tid; i < N; i += blockDim.x) {
+        row[i] *= inv_sum;
+    }
+}

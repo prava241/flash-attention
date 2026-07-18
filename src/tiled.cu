@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
     dim3 s_block(256);
     dim3 s_grid(N);
 
-    softmax_kernel<<<s_grid,s_block>>>(
+    shfl_softmax_kernel<<<s_grid,s_block>>>(
         S, N
     );
 
