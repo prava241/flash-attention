@@ -152,14 +152,14 @@ __global__ void tiled_mmT_kernel(
         int A_k = tile * blockDim.x + threadIdx.x;
         int B_k = tile * blockDim.x + threadIdx.y;
 
-        // if (row < M && A_k < K)
-        //     A_shared[idx] = A[row*K + A_k];
-        // else
+        if (row < M && A_k < K)
+            A_shared[idx] = A[row*K + A_k];
+        else
             A_shared[idx] = 0.0f;
 
-        // if (col < N && B_k < K)
-        //     B_shared[idxT] = B[col*K + B_k];
-        // else
+        if (col < N && B_k < K)
+            B_shared[idxT] = B[col*K + B_k];
+        else
             B_shared[idxT] = 0.0f;
 
         __syncthreads();
@@ -173,6 +173,55 @@ __global__ void tiled_mmT_kernel(
         __syncthreads();
     }
 
-    // if (row < M && col < N)
+    if (row < M && col < N)
+        C[row*N + col] = sum;
+}
+
+__global__ void tiled_mm_kernel(
+    const float* A,
+    const float* B,
+    float* C,
+    int M,
+    int N,
+    int K)
+{
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int idx = threadIdx.y * blockDim.x + threadIdx.x;
+    int idxT = threadIdx.x * blockDim.x + threadIdx.y;
+
+    __shared__ float A_shared[256];
+    __shared__ float B_shared[256];
+
+    float sum = 0.0f;
+
+    for (int tile = 0; tile < (K + blockDim.x - 1) / blockDim.x; tile++) {
+
+        int A_k = tile * blockDim.x + threadIdx.x;
+        int B_k = tile * blockDim.x + threadIdx.y;
+
+        if (row < M && A_k < K)
+            A_shared[idx] = A[row*K + A_k];
+        else
+            A_shared[idx] = 0.0f;
+
+        if (col < N && B_k < K)
+            B_shared[idxT] = B[B_k*K + col];
+        else
+            B_shared[idxT] = 0.0f;
+
+        __syncthreads();
+
+        for (int k = 0; k < blockDim.x; k++) {
+            sum +=
+                A_shared[threadIdx.y * blockDim.x + k] *
+                B_shared[threadIdx.x + blockDim.x * k];
+        }
+
+        __syncthreads();
+    }
+
+    if (row < M && col < N)
         C[row*N + col] = sum;
 }

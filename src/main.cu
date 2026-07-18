@@ -144,7 +144,7 @@ void tiled_mm_attention(
         (N+15)/16
     );
 
-    matmul_kernel<<<mm_grid,mm_block>>>(
+    tiled_mm_kernel<<<mm_grid,mm_block>>>(
         S, V, O, N, D, N
     );
 
