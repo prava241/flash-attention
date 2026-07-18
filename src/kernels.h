@@ -50,4 +50,14 @@ __global__ void tiled_mm_kernel(
     int K
 );
 
+__global__ void tiled_scaled_mmT_kernel(
+    const float* A,
+    const float* B,
+    float* C,
+    int M,
+    int N,
+    int K,
+    float factor
+);
+
 #endif // KERNELS_H

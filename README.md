@@ -11,7 +11,7 @@ I am implementing the optimizations in FlashAttention from scratch. The end resu
     - row-wise softmax
     - attention-value multiplication
 
-- [ ] Tiled GEMM
+- [x] Tiled GEMM
   - Use shared memory to improve matrix multiplication throughput
   - Reduce redundant global memory accesses
 

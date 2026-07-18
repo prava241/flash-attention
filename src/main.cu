@@ -118,18 +118,18 @@ void tiled_mm_attention(
         (N+15)/16
     );
 
-    tiled_mmT_kernel<<<mmt_grid,mmt_block>>>(
-        Q, K, S, N, N, D
+    tiled_scaled_mmT_kernel<<<mmt_grid,mmt_block>>>(
+        Q, K, S, N, N, D, 1/sqrtf((float)D)
     );
 
-    dim3 d_block(256);
-    dim3 d_grid(
-        (S_elements+255)/256
-    );
+    // dim3 d_block(256);
+    // dim3 d_grid(
+    //     (S_elements+255)/256
+    // );
 
-    scale_kernel<<<d_grid,d_block>>>(
-        S, 1/sqrtf((float)D), S_elements
-    );
+    // scale_kernel<<<d_grid,d_block>>>(
+    //     S, 1/sqrtf((float)D), S_elements
+    // );
 
     dim3 s_block(256);
     dim3 s_grid(N);
