@@ -189,7 +189,6 @@ __global__ void tiled_mm_kernel(
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
     int idx = threadIdx.y * blockDim.x + threadIdx.x;
-    int idxT = threadIdx.x * blockDim.x + threadIdx.y;
 
     __shared__ float A_shared[256];
     __shared__ float B_shared[256];
