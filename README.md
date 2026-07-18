@@ -15,9 +15,8 @@ I am implementing the optimizations in FlashAttention from scratch. The end resu
   - Use shared memory to improve matrix multiplication throughput
   - Reduce redundant global memory accesses
 
-- [ ] Optimized reductions
+- [x] Optimized reductions
   - Warp-level reductions
-  - CUDA shuffle instructions
   - Faster softmax max/sum computation
 
 - [ ] Kernel fusion
