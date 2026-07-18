@@ -99,7 +99,7 @@ void baseline_attention(
     cudaFree(S);
 }
 
-void baseline_attention(
+void tiled_mm_attention(
     float* Q,
     float* K,
     float* V,
@@ -203,9 +203,10 @@ int main(int argc, char* argv[])
 
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-
     cudaEventRecord(start);
-    baseline_attention(Q, K, V, N, D, O);
+
+    tiled_mm_attention(Q, K, V, N, D, O);
+
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
