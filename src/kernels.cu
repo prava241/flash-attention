@@ -152,14 +152,14 @@ __global__ void tiled_mmT_kernel(
         int A_k = tile * blockDim.x + threadIdx.x;
         int B_k = tile * blockDim.x + threadIdx.y;
 
-        if (row < M && A_k < K)
-            A_shared[idx] = A[row*K + A_k];
-        else
+        // if (row < M && A_k < K)
+        //     A_shared[idx] = A[row*K + A_k];
+        // else
             A_shared[idx] = 0.0f;
 
-        if (col < N && B_k < K)
-            B_shared[idxT] = B[col*K + B_k];
-        else
+        // if (col < N && B_k < K)
+        //     B_shared[idxT] = B[col*K + B_k];
+        // else
             B_shared[idxT] = 0.0f;
 
         __syncthreads();
@@ -173,6 +173,6 @@ __global__ void tiled_mmT_kernel(
         __syncthreads();
     }
 
-    if (row < M && col < N)
+    // if (row < M && col < N)
         C[row*N + col] = sum;
 }
