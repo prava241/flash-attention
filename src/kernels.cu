@@ -207,7 +207,7 @@ __global__ void tiled_mm_kernel(
             A_shared[idx] = 0.0f;
 
         if (col < N && B_k < K)
-            B_shared[idxT] = B[B_k*K + col];
+            B_shared[idxT] = B[B_k*N + col];
         else
             B_shared[idxT] = 0.0f;
 
