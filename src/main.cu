@@ -75,8 +75,60 @@ void baseline_attention(
         (S_elements+255)/256
     );
 
-    const_div<<<d_grid,d_block>>>(
-        S, sqrtf((float)D), S_elements
+    scale_kernel<<<d_grid,d_block>>>(
+        S, 1/sqrtf((float)D), S_elements
+    );
+
+    dim3 s_block(256);
+    dim3 s_grid(N);
+
+    softmax_kernel<<<s_grid,s_block>>>(
+        S, N
+    );
+
+    dim3 mm_block(16,16);
+    dim3 mm_grid(
+        (D+15)/16,
+        (N+15)/16
+    );
+
+    matmul_kernel<<<mm_grid,mm_block>>>(
+        S, V, O, N, D, N
+    );
+
+    cudaFree(S);
+}
+
+void baseline_attention(
+    float* Q,
+    float* K,
+    float* V,
+    int N,
+    int D,
+    float* O
+) 
+{
+    float* S;
+    int S_elements = N*N;
+    cudaMalloc(&S, S_elements*sizeof(float));
+
+    dim3 mmt_block(16,16);
+    dim3 mmt_grid(
+        (N+15)/16,
+        (N+15)/16
+    );
+
+    tiled_mmT_kernel<<<mmt_grid,mmt_block>>>(
+        Q, K, S, N, N, D
+    );
+
+    dim3 d_block(256);
+    dim3 d_grid(
+        (S_elements+255)/256
+    );
+
+    scale_kernel<<<d_grid,d_block>>>(
+        S, 1/sqrtf((float)D), S_elements
     );
 
     dim3 s_block(256);

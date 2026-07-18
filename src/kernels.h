@@ -12,7 +12,7 @@ __global__ void matmulT_kernel(
     int K
 );
 
-__global__ void const_div(
+__global__ void scale_kernel(
     float* C,
     float factor,
     int n
@@ -24,6 +24,15 @@ __global__ void softmax_kernel(
 );
 
 __global__ void matmul_kernel(
+    const float* A,
+    const float* B,
+    float* C,
+    int M,
+    int N,
+    int K
+);
+
+__global__ void tiled_mmT_kernel(
     const float* A,
     const float* B,
     float* C,

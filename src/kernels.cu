@@ -38,14 +38,14 @@ __global__ void matmulT_kernel(
     C[row * N + col] = sum;
 }
 
-__global__ void const_div(
+__global__ void scale_kernel(
     float* C,
     float factor,
     int n)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
-    C[i] /= factor;
+    C[i] *= factor;
 }
 
 __global__ void softmax_kernel(
@@ -122,4 +122,50 @@ __global__ void matmul_kernel(
     }
 
     C[row * N + col] = sum;
+}
+
+/* 
+ * Tiled GEMM
+ */
+
+__global__ void tiled_mmT_kernel(
+    const float* A,
+    const float* B,
+    float* C,
+    int M,
+    int N,
+    int K)
+{
+    float sum = 0.0f;
+    // Global row/column this thread is responsible for. (blockDim x, y) (blockIdx x, y) (threadIdx x, y)
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int A_tile_idx = blockDim.x * threadIdx.y + threadIdx.x;
+    int B_tile_idx = blockDim.x * threadIdx.x + threadIdx.y;
+    int offset = K * blockIdx.y * blockDim.y + blockIdx.x * blockDim.x;
+
+    __shared__ float A_shared[256]; // TODO: make this dynamically sized
+    __shared__ float B_shared[256];
+    __shared__ float C_shared[256];
+
+    C_shared[A_tile_idx] = 0.0f;
+    __syncthreads();
+
+    for (int tile = 0; tile < K/blockDim.x; tile++) {
+        A_shared[A_tile_idx] = A[row * K + tile * blockDim.x + threadIdx.x];
+        B_shared[B_tile_idx] = B[col * K + tile * blockDim.y + threadIdx.y];
+        __syncthreads();
+        int A_mm_idx = blockDim.x * threadIdx.y;
+        int B_mm_idx = blockDim.x * threadIdx.x;
+        for (int k = 0; k < blockDim.x; k++) {
+            C_shared[A_tile_idx] += A_shared[A_mm_idx] + B_shared[B_mm_idx];
+            A_mm_idx++;
+            B_mm_idx++;
+        }
+    }
+
+    if (row >= M || col >= N)
+        return;
+
+    C[row * N + col] = C_shared[A_tile_idx];
 }
