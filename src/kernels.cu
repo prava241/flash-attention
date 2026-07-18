@@ -136,36 +136,42 @@ __global__ void tiled_mmT_kernel(
     int N,
     int K)
 {
-    float sum = 0.0f;
-    // Global row/column this thread is responsible for. (blockDim x, y) (blockIdx x, y) (threadIdx x, y)
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int A_tile_idx = blockDim.x * threadIdx.y + threadIdx.x;
-    int B_tile_idx = blockDim.x * threadIdx.x + threadIdx.y;
-    int offset = K * blockIdx.y * blockDim.y + blockIdx.x * blockDim.x;
 
-    __shared__ float A_shared[256]; // TODO: make this dynamically sized
+    int idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    __shared__ float A_shared[256];
     __shared__ float B_shared[256];
-    __shared__ float C_shared[256];
 
-    C_shared[A_tile_idx] = 0.0f;
-    __syncthreads();
+    float sum = 0.0f;
 
-    for (int tile = 0; tile < K/blockDim.x; tile++) {
-        A_shared[A_tile_idx] = A[row * K + tile * blockDim.x + threadIdx.x];
-        B_shared[B_tile_idx] = B[col * K + tile * blockDim.x + threadIdx.y];
+    for (int tile = 0; tile < (K + blockDim.x - 1) / blockDim.x; tile++) {
+
+        int A_k = tile * blockDim.x + threadIdx.x;
+        int B_k = tile * blockDim.x + threadIdx.y;
+
+        if (row < M && A_k < K)
+            A_shared[idx] = A[row*K + A_k];
+        else
+            A_shared[idx] = 0.0f;
+
+        if (col < N && B_k < K)
+            B_shared[idx] = B[col*K + B_k];
+        else
+            B_shared[idx] = 0.0f;
+
         __syncthreads();
-        int A_mm_idx = blockDim.x * threadIdx.y;
-        int B_mm_idx = blockDim.x * threadIdx.x;
+
         for (int k = 0; k < blockDim.x; k++) {
-            C_shared[A_tile_idx] += A_shared[A_mm_idx] * B_shared[B_mm_idx];
-            A_mm_idx++;
-            B_mm_idx++;
+            sum +=
+                A_shared[threadIdx.y * blockDim.x + k] *
+                B_shared[threadIdx.x * blockDim.x + k];
         }
+
+        __syncthreads();
     }
 
-    // if (row >= M || col >= N)
-    //     return;
-
-    C[row * N + col] = C_shared[A_tile_idx];
+    if (row < M && col < N)
+        C[row*N + col] = sum;
 }
