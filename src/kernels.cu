@@ -212,7 +212,8 @@ __global__ void tiled_mm_kernel(
             B_shared[idx] = 0.0f;
 
         __syncthreads();
-
+        
+        #pragma unroll
         for (int k = 0; k < blockDim.x; k++) {
             sum +=
                 A_shared[threadIdx.y * blockDim.x + k] *
@@ -264,6 +265,7 @@ __global__ void tiled_scaled_mmT_kernel(
 
         __syncthreads();
 
+        #pragma unroll
         for (int k = 0; k < blockDim.x; k++) {
             sum +=
                 A_shared[threadIdx.y * blockDim.x + k] *
