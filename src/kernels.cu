@@ -353,15 +353,16 @@ __global__ void flash_attention(
     int D,
     float* O
 )
-{
+{   
+    constexpr int MAX_COLS_PER_THREAD = 32;
     // assumes blockDim.x == 32, blockDim.y == 8 (one warp per query row)
     int cols_per_thread = (D + blockDim.x - 1) / blockDim.x;
     float factor = 1.0f / sqrtf((float)D);
 
     int row = blockIdx.y * blockDim.y + threadIdx.y;
 
-    float Q_block[cols_per_thread];
-    float O_acc[cols_per_thread];
+    float Q_block[MAX_COLS_PER_THREAD];
+    float O_acc[MAX_COLS_PER_THREAD];
     for (int c = 0; c < cols_per_thread; c++) {
         int col = c * blockDim.x + threadIdx.x;
         Q_block[c] = (row < N && col < D) ? Q[row * D + col] : 0.0f;
@@ -372,8 +373,8 @@ __global__ void flash_attention(
     float l = 0.0f;
 
     for (int j = 0; j < N; j++) {
-        float K_block[cols_per_thread];
-        float V_block[cols_per_thread];
+        float K_block[MAX_COLS_PER_THREAD];
+        float V_block[MAX_COLS_PER_THREAD];
         for (int c = 0; c < cols_per_thread; c++) {
             int col = c * blockDim.x + threadIdx.x;
             K_block[c] = (col < D) ? K[j * D + col] : 0.0f;
