@@ -353,13 +353,19 @@ __global__ void flash_attention(
     int D,
     float* O
 )
-{   
+{
     constexpr int MAX_COLS_PER_THREAD = 32;
-    // assumes blockDim.x == 32, blockDim.y == 8 (one warp per query row)
+    // assumes blockDim.x == 32 (one warp per Q row)
+    // blockDim.y is the number of query rows per block (Br) 
+    // and the number of K/V rows loaded per tile
     int cols_per_thread = (D + blockDim.x - 1) / blockDim.x;
     float factor = 1.0f / sqrtf((float)D);
 
     int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    extern __shared__ float smem[];
+    float* K_tile = smem;                   
+    float* V_tile = smem + blockDim.y * D; 
 
     float Q_block[MAX_COLS_PER_THREAD];
     float O_acc[MAX_COLS_PER_THREAD];
@@ -372,35 +378,50 @@ __global__ void flash_attention(
     float m = -INFINITY;
     float l = 0.0f;
 
-    for (int j = 0; j < N; j++) {
-        float K_block[MAX_COLS_PER_THREAD];
-        float V_block[MAX_COLS_PER_THREAD];
-        for (int c = 0; c < cols_per_thread; c++) {
-            int col = c * blockDim.x + threadIdx.x;
-            K_block[c] = (col < D) ? K[j * D + col] : 0.0f;
-            V_block[c] = (col < D) ? V[j * D + col] : 0.0f;
-        }
+    int linear_tid = threadIdx.y * blockDim.x + threadIdx.x;
+    int num_threads = blockDim.x * blockDim.y;
+    int tile_elems = blockDim.y * D;
 
-        // dot product of this thread's query row against key row j
-        float partial = 0.0f;
-        for (int c = 0; c < cols_per_thread; c++) {
-            partial += Q_block[c] * K_block[c];
+    for (int tile_start = 0; tile_start < N; tile_start += blockDim.y) {
+        // cooperative load
+        for (int idx = linear_tid; idx < tile_elems; idx += num_threads) {
+            int kk = idx / D;
+            int col = idx % D;
+            int key_row = tile_start + kk;
+            K_tile[idx] = (key_row < N) ? K[key_row * D + col] : 0.0f;
+            V_tile[idx] = (key_row < N) ? V[key_row * D + col] : 0.0f;
         }
-        for (int offset = warpSize / 2; offset > 0; offset /= 2) {
-            partial += __shfl_xor_sync(0xffffffff, partial, offset);
-        }
-        float score = partial * factor;
+        __syncthreads();
 
-        // online softmax update
-        float m_new = max(m, score);
-        float alpha = expf(m - m_new);
-        float p = expf(score - m_new);
+        for (int kk = 0; kk < blockDim.y; kk++) {
+            if (tile_start + kk >= N) break;
 
-        l = l * alpha + p;
-        for (int c = 0; c < cols_per_thread; c++) {
-            O_acc[c] = O_acc[c] * alpha + p * V_block[c];
+            // dot product of this thread's query row against key row kk
+            float partial = 0.0f;
+            for (int c = 0; c < cols_per_thread; c++) {
+                int col = c * blockDim.x + threadIdx.x;
+                float k_val = (col < D) ? K_tile[kk * D + col] : 0.0f;
+                partial += Q_block[c] * k_val;
+            }
+            for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+                partial += __shfl_xor_sync(0xffffffff, partial, offset);
+            }
+            float score = partial * factor;
+
+            // online softmax update
+            float m_new = max(m, score);
+            float alpha = expf(m - m_new);
+            float p = expf(score - m_new);
+
+            l = l * alpha + p;
+            for (int c = 0; c < cols_per_thread; c++) {
+                int col = c * blockDim.x + threadIdx.x;
+                float v_val = (col < D) ? V_tile[kk * D + col] : 0.0f;
+                O_acc[c] = O_acc[c] * alpha + p * v_val;
+            }
+            m = m_new;
         }
-        m = m_new;
+        __syncthreads();
     }
 
     if (row < N) {

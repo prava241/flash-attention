@@ -58,14 +58,16 @@ int main(int argc, char* argv[])
     cudaEventCreate(&stop);
     cudaEventRecord(start);
 
-    // one warp (blockDim.x == 32) per query row, blockDim.y rows per block
+    // one warp (blockDim.x == 32) per query row, blockDim.y rows per block;
+    // blockDim.y also doubles as the K/V tile size (Bc) shared via smem
     dim3 flash_block(32, 8);
     dim3 flash_grid(
         1,
         (N + flash_block.y - 1) / flash_block.y
     );
+    size_t flash_smem_bytes = 2 * flash_block.y * D * sizeof(float);
 
-    flash_attention<<<flash_grid,flash_block>>>(
+    flash_attention<<<flash_grid,flash_block,flash_smem_bytes>>>(
         Q, K, V, N, D, O
     );
 
