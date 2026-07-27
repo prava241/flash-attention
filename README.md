@@ -19,17 +19,17 @@ I am implementing the optimizations in FlashAttention from scratch. The end resu
   - Warp-level reductions
   - Faster softmax max/sum computation
 
-- [ ] Kernel fusion
-  - Fuse attention operations to reduce global memory traffic
-  - Avoid unnecessary intermediate tensors
+- [x] FlashAttention-style tiled attention
+  - Implement streaming softmax
+  - Blockwise attention using shared-memory tiles
 
-- [ ] Online softmax
-  - Implement numerically stable streaming softmax
-  - Maintain running statistics while processing attention tiles
+- [ ] Optimized load/store patterns
+  - Register tiling
+  - Vectorized loads
+  - Double buffering
 
-- [ ] FlashAttention-style tiled attention
-  - Avoid materializing the full attention matrix
-  - Compute attention using shared-memory tiles
+- [ ] More efficient computation
+  - Tensor cores for matrix multiplication
 
 ## Goals
 
@@ -44,3 +44,10 @@ Performance is compared against:
 - PyTorch attention implementation
 
 Correctness is checked using numerical comparisons against PyTorch outputs.
+
+Current results:
+- Naive PyTorch: ~2 ms
+- Optimized PyTorch: ~1.6 ms
+- Naive CUDA: ~25 ms
+- Tiled CUDA: ~15 ms
+- FlashAttention: ~10 ms (current best)
