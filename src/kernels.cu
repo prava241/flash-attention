@@ -344,3 +344,70 @@ __global__ void shfl_softmax_kernel(
         row[i] *= inv_sum;
     }
 }
+
+__global__ void flash_attention(
+    const float* Q,
+    const float* K,
+    const float* V,
+    int N,
+    int D,
+    float* O
+)
+{
+    // assumes blockDim.x == 32, blockDim.y == 8 (one warp per query row)
+    int cols_per_thread = (D + blockDim.x - 1) / blockDim.x;
+    float factor = 1.0f / sqrtf((float)D);
+
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    float Q_block[cols_per_thread];
+    float O_acc[cols_per_thread];
+    for (int c = 0; c < cols_per_thread; c++) {
+        int col = c * blockDim.x + threadIdx.x;
+        Q_block[c] = (row < N && col < D) ? Q[row * D + col] : 0.0f;
+        O_acc[c] = 0.0f;
+    }
+
+    float m = -INFINITY;
+    float l = 0.0f;
+
+    for (int j = 0; j < N; j++) {
+        float K_block[cols_per_thread];
+        float V_block[cols_per_thread];
+        for (int c = 0; c < cols_per_thread; c++) {
+            int col = c * blockDim.x + threadIdx.x;
+            K_block[c] = (col < D) ? K[j * D + col] : 0.0f;
+            V_block[c] = (col < D) ? V[j * D + col] : 0.0f;
+        }
+
+        // dot product of this thread's query row against key row j
+        float partial = 0.0f;
+        for (int c = 0; c < cols_per_thread; c++) {
+            partial += Q_block[c] * K_block[c];
+        }
+        for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+            partial += __shfl_xor_sync(0xffffffff, partial, offset);
+        }
+        float score = partial * factor;
+
+        // online softmax update
+        float m_new = max(m, score);
+        float alpha = expf(m - m_new);
+        float p = expf(score - m_new);
+
+        l = l * alpha + p;
+        for (int c = 0; c < cols_per_thread; c++) {
+            O_acc[c] = O_acc[c] * alpha + p * V_block[c];
+        }
+        m = m_new;
+    }
+
+    if (row < N) {
+        for (int c = 0; c < cols_per_thread; c++) {
+            int col = c * blockDim.x + threadIdx.x;
+            if (col < D) {
+                O[row * D + col] = O_acc[c] / l;
+            }
+        }
+    }
+}

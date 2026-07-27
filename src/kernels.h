@@ -65,4 +65,13 @@ __global__ void shfl_softmax_kernel(
     int N
 );
 
+__global__ void flash_attention(
+    const float* Q,
+    const float* K,
+    const float* V,
+    int N,
+    int D,
+    float* O
+);
+
 #endif // KERNELS_H
